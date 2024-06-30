@@ -20,7 +20,7 @@ CITY = ["Hamburg", "München", "Düsseldorf", "Berlin", "Frankfurt", "Dießen am
 KATEGORIEN = ["Restaurant & Bars", "Kino & Theater", "Konzerte", "Szene"]
 LLM = "openai_gpt-4o"
 HEUTE = str(datetime.now().date())
-TEMPERATURE = 0.5
+TEMPERATURE = 0.1
 
 load_dotenv()
 openaiClient = openai.OpenAI(api_key=os.environ.get('OPENAI_API_KEY_DVV'))
@@ -103,7 +103,7 @@ def main() -> None:
             st.session_state.city = switch_city
             st.session_state.cityIndex = CITY.index(switch_city)
         # question = st.text_input(label="", value=f"Ausgehtipps für heute in {st.session_state.city}")
-        if st.form_submit_button("Neu suchen"):
+        if st.form_submit_button("Generiere Vorschläge"):
             st.session_state.searchStatus = True
 
     # Define Search & Search Results -------------------------------------------
