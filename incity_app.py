@@ -1,7 +1,8 @@
 # ---------------------------------------------------
-# Version: 29.06.2024
+# Version: 30.06.2024
 # Author: M. Weber
 # ---------------------------------------------------
+# change websearch to Tavily
 # ---------------------------------------------------
 
 from datetime import datetime
@@ -11,7 +12,8 @@ import requests
 from bs4 import BeautifulSoup
 
 import openai
-from duckduckgo_search import DDGS
+# from duckduckgo_search import DDGS
+from tavily import TavilyClient
 
 import streamlit as st
 
@@ -24,27 +26,35 @@ TEMPERATURE = 0.1
 
 load_dotenv()
 openaiClient = openai.OpenAI(api_key=os.environ.get('OPENAI_API_KEY_DVV'))
+tavilyClient = TavilyClient(api_key=os.environ.get('TAVILY_API_KEY_PRIVAT'))
 
 # Functions -----------------------------------------------------------
 
 def web_search(limit: int = 10) -> list:
     query = f"Ausgehtipps für den {HEUTE} in {st.session_state.city} für {', '.join(KATEGORIEN)}"
-    results = DDGS().text(keywords=query, max_results=limit)
+    # results = DDGS().text(keywords=query, max_results=limit)
+    response = tavilyClient.search(query=query, max_results=limit, include_raw_content=True)
+    results = response['results']
     if results:
         return results
     else:
         return []
     
-def write_summary(url: str) -> str:
-    headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A"}
-    try:
-        response = requests.get(url, headers=headers)
-    except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
-        return "error", "error"
-    soup = BeautifulSoup(response.text, 'html.parser')
-    if soup.body:
-        text = soup.get_text()
+def write_summary(content: str = "", url: str = "") -> str:
+    text = ""
+    if url != "":
+        headers = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.75.14 (KHTML, like Gecko) Version/7.0.3 Safari/7046A194A"}
+        try:
+            response = requests.get(url, headers=headers)
+        except requests.exceptions.RequestException as e:
+            print(f"Error: {e}")
+            return "error", "error"
+        soup = BeautifulSoup(response.text, 'html.parser')
+        if soup.body:
+            text = soup.get_text()
+    elif content != "":
+        text = content
+    if text != "":
         input_messages = [
                 {"role": "user", "content": f"Schreibe eine Zusammenfassung des folgendes Textes: {text}."},
                 ]
@@ -88,7 +98,7 @@ def ask_llm(web_results_str: str = "") -> str:
 def main() -> None:
     st.set_page_config(page_title='CITY Insight')
     st.title("CITY Insight")
-    st.write("Version: 29.06.2024 Status: POC")
+    st.write("Version: 30.06.2024 Status: POC")
     
     # Initialize Session State -----------------------------------------
     if 'city' not in st.session_state:
@@ -113,10 +123,15 @@ def main() -> None:
         results = web_search(limit=10)
         with st.expander("WEB Suchergebnisse"):
             for result in results:
-                summary = write_summary(result['href'])
+                if result['score'] < 0.9:
+                    continue
+                # summary = write_summary(result['href])
+                summary = write_summary(content=result['raw_content'])
                 if summary  != "":
-                    st.write(f"{result['title']} [{result['href']}]\n{result['body'][:1000]}...")
-                    web_results_str += f"Titel: {result['title']}\nURL: {result['href']}\nSUMMARY: {summary}\n"
+                    # st.write(f"{result['title']} [{result['href']}]\n{result['body'][:1000]}...")
+                    # web_results_str += f"Titel: {result['title']}\nURL: {result['href']}\nSUMMARY: {summary}\n"
+                    st.write(f"[{result['score']}] {result['title']} [{result['url']}]")
+                    web_results_str += f"Titel: {result['title']}\nURL: {result['url']}\nSUMMARY: {summary}\n"
         # LLM Search ------------------------------------------------
         st.write(ask_llm(web_results_str=web_results_str))
         st.session_state.searchStatus = False
