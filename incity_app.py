@@ -1,8 +1,9 @@
 # ---------------------------------------------------
-# Version: 30.06.2024
+# Version: 01.07.2024
 # Author: M. Weber
 # ---------------------------------------------------
 # change websearch to Tavily
+# split into search for each keyword
 # ---------------------------------------------------
 
 from datetime import datetime
@@ -19,7 +20,7 @@ import streamlit as st
 
 # Define Constants ---------------------------------------------------
 CITY = ["Hamburg", "München", "Düsseldorf", "Berlin", "Frankfurt", "Dießen am Ammersee", "Würzburg", "Karlsruhe", "Bremen"]
-KATEGORIEN = ["Restaurant & Bars", "Kino & Theater", "Konzerte", "Szene"]
+KATEGORIEN = ["Restaurant & Bars", "Kunst & Museen", "Kino & Theater", "Konzerte", "Szene"]
 LLM = "openai_gpt-4o"
 HEUTE = str(datetime.now().date())
 TEMPERATURE = 0.1
@@ -30,11 +31,14 @@ tavilyClient = TavilyClient(api_key=os.environ.get('TAVILY_API_KEY_PRIVAT'))
 
 # Functions -----------------------------------------------------------
 
-def web_search(limit: int = 10) -> list:
-    query = f"Ausgehtipps für den {HEUTE} in {st.session_state.city} für {', '.join(KATEGORIEN)}"
-    # results = DDGS().text(keywords=query, max_results=limit)
-    response = tavilyClient.search(query=query, max_results=limit, include_raw_content=True)
-    results = response['results']
+def web_search(score: float = 0.9, limit: int = 3) -> list:
+    results = []
+    for kat in KATEGORIEN:
+        query = f"Ausgehtipps für den {HEUTE} in {st.session_state.city} für {kat}"
+        # results = DDGS().text(keywords=query, max_results=limit)
+        response = tavilyClient.search(query=query, max_results=limit, include_raw_content=True)
+        if float(response['results']['score']) >= score:
+            results = results +response['results']
     if results:
         return results
     else:
@@ -98,7 +102,7 @@ def ask_llm(web_results_str: str = "") -> str:
 def main() -> None:
     st.set_page_config(page_title='CITY Insight')
     st.title("CITY Insight")
-    st.write("Version: 30.06.2024 Status: POC")
+    st.write("Version: 01.07.2024 Status: POC")
     
     # Initialize Session State -----------------------------------------
     if 'city' not in st.session_state:
@@ -120,11 +124,9 @@ def main() -> None:
     if st.session_state.searchStatus:   
         # Web Search ------------------------------------------------
         web_results_str = ""
-        results = web_search(limit=10)
+        results = web_search(score=0.9, limit=3)
         with st.expander("WEB Suchergebnisse"):
             for result in results:
-                if result['score'] < 0.9:
-                    continue
                 # summary = write_summary(result['href])
                 summary = write_summary(content=result['raw_content'])
                 if summary  != "":
